@@ -93,6 +93,7 @@ netflix_model  = load_safe("models/netflix/model.pkl")
 netflix_scaler = load_safe("models/netflix/scaler.pkl")
 netflix_nn     = load_nn("models/netflix/nn.keras")
 netflix_le     = load_safe("models/netflix/type_encoder.pkl")
+netflix_genre_columns = load_safe("models/netflix/genre_columns.pkl") # [เพิ่ม] โหลดรายชื่อ Genre
  
 #  Sidebar 
 with st.sidebar:
@@ -106,7 +107,7 @@ with st.sidebar:
             "🗄️  Datasets",
             "🔍  Features",
             "🧠  ML Models",
-            "🤖  Neural Net",
+            "🤖  Neural Network",
             "🎮  Steam Predict",
             "🎬  Netflix Predict",
         ],
@@ -300,9 +301,9 @@ elif page == "🧠  ML Models":
     </div>''', unsafe_allow_html=True)
  
 
-# PAGE: NEURAL NET
+# PAGE: NEURAL Network
 
-elif page == "🤖  Neural Net":
+elif page == "🤖  Neural Network":
     st.markdown('<div class="page-title">Neural Network Architecture</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-subtitle">โครงสร้าง Deep Learning ที่ใช้ใน PopScope AI</div>', unsafe_allow_html=True)
  
@@ -452,23 +453,42 @@ elif page == "🎬  Netflix Predict":
         )
         st.markdown('<p class="tooltip-label">💡 ระวังความยาวที่มากเกินไปอาจทำให้ Completion rate ตก</p>', unsafe_allow_html=True)
  
+    # [เพิ่ม] ส่วนให้ User เลือก Genre
+    st.markdown("<br>", unsafe_allow_html=True)
+    selected_genres = []
+    if netflix_genre_columns:
+        selected_genres = st.multiselect(
+            "🎭 Genres (listed_in)",
+            options=netflix_genre_columns,
+            help="เลือกหมวดหมู่ของคอนเทนต์ (สามารถเลือกได้มากกว่า 1 หมวดหมู่)"
+        )
+        st.markdown('<p class="tooltip-label">💡 หมวดหมู่ที่ตรงกับกลุ่มเป้าหมายมีผลอย่างมากต่อความนิยม</p>', unsafe_allow_html=True)
+    else:
+        st.info("⚠️ ไม่พบข้อมูล Genre กรุณารันไฟล์ train_netflix.py เพื่อฝึกโมเดลและสร้างไฟล์ genre_columns.pkl ก่อน")
+
     st.markdown("<br>", unsafe_allow_html=True)
  
-    models_ready_n = netflix_model and netflix_scaler and netflix_le
+    # [แก้ไข] เช็คว่าโหลด genre_columns สำเร็จด้วย
+    models_ready_n = netflix_model and netflix_scaler and netflix_le and netflix_genre_columns
     col_ml2, col_nn2 = st.columns(2)
  
     with col_ml2:
         if st.button("🧠 Predict with ML Ensemble", use_container_width=True, key="nf_ml"):
             if not models_ready_n:
-                st.warning("⚠️ ไม่พบไฟล์โมเดล ML — กรุณาฝึกโมเดลก่อน (models/netflix/model.pkl)")
+                st.warning("⚠️ ไม่พบไฟล์โมเดล ML หรือไฟล์ Genre — กรุณาฝึกโมเดลก่อน (models/netflix/model.pkl)")
             else:
                 try:
                     t_enc = netflix_le.transform([t])[0]
-                    data = netflix_scaler.transform(np.array([[t_enc, year, duration]]))
+                    # [เพิ่ม] แปลง Genre ที่เลือกให้เป็น One-Hot Array
+                    genre_features = [1 if g in selected_genres else 0 for g in netflix_genre_columns]
+                    # รวม Features ทั้งหมดเข้าด้วยกัน (เรียงลำดับให้ตรงกับตอน Train)
+                    features = [t_enc, year, duration] + genre_features
+                    data = netflix_scaler.transform(np.array([features]))
+                    
                     prob = netflix_model.predict_proba(data)[0][1]
                     verdict, insight, theme = get_actionable_insight(prob)
                     
-                    st.markdown(f'''<div class="result-box" style="border-color: rgba(,95,142,0.3);">
+                    st.markdown(f'''<div class="result-box" style="border-color: rgba(247,95,142,0.3);">
 <div class="result-percent" style="background: linear-gradient(to right, var(--accent-pink), #ffb3c8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{prob*100:.1f}%</div>
 <div class="result-label">ML Ensemble Confidence Score</div>
 <br><span style="font-size:1.3rem; font-weight:700;">{verdict}</span>
@@ -484,11 +504,16 @@ elif page == "🎬  Netflix Predict":
     with col_nn2:
         if st.button("🤖 Predict with Neural Net", use_container_width=True, key="nf_nn"):
             if not (models_ready_n and netflix_nn):
-                st.warning("⚠️ ไม่พบไฟล์ Neural Network — กรุณาฝึกโมเดลก่อน (models/netflix/nn.keras)")
+                st.warning("⚠️ ไม่พบไฟล์ Neural Network หรือไฟล์ Genre — กรุณาฝึกโมเดลก่อน (models/netflix/nn.keras)")
             else:
                 try:
                     t_enc = netflix_le.transform([t])[0]
-                    data = netflix_scaler.transform(np.array([[t_enc, year, duration]]))
+                    # [เพิ่ม] แปลง Genre ที่เลือกให้เป็น One-Hot Array
+                    genre_features = [1 if g in selected_genres else 0 for g in netflix_genre_columns]
+                    # รวม Features ทั้งหมดเข้าด้วยกัน (เรียงลำดับให้ตรงกับตอน Train)
+                    features = [t_enc, year, duration] + genre_features
+                    data = netflix_scaler.transform(np.array([features]))
+                    
                     prob = float(netflix_nn.predict(data, verbose=0)[0][0])
                     verdict, insight, theme = get_actionable_insight(prob)
                     

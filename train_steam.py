@@ -13,38 +13,38 @@ from tensorflow.keras.layers import Dense
 
 print("🚀 TRAIN STEAM START")
 
-# ---------------- PATH ----------------
+#  PATH 
 os.makedirs("models/steam", exist_ok=True)
 
-# ---------------- LOAD ----------------
+#  LOAD 
 df = pd.read_csv("data/steam_games_2026.csv")
 
-# ---------------- CLEAN ----------------
+#  CLEAN 
 df = df.dropna(subset=["Price_USD", "Review_Score_Pct", "Primary_Genre"])
 
-# ---------------- TARGET ----------------
+#  TARGET 
 df["popular"] = df["Review_Score_Pct"] > 80
 
-# ---------------- ENCODE ----------------
+#  ENCODE 
 le = LabelEncoder()
 df["Primary_Genre"] = le.fit_transform(df["Primary_Genre"])
 joblib.dump(le, "models/steam/label_encoder.pkl")
 
-# ---------------- FEATURES ----------------
+#  FEATURES 
 X = df[["Price_USD", "Review_Score_Pct", "Primary_Genre"]]
 y = df["popular"]
 
-# ---------------- SCALE ----------------
+#  SCALE 
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 joblib.dump(scaler, "models/steam/scaler.pkl")
 
-# ---------------- SPLIT ----------------
+#  SPLIT 
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.2, random_state=42
 )
 
-# ---------------- ML ----------------
+#  ML 
 rf = RandomForestClassifier(n_estimators=100)
 gb = GradientBoostingClassifier()
 lr = LogisticRegression(max_iter=1000)
@@ -57,7 +57,7 @@ ensemble = VotingClassifier(
 ensemble.fit(X_train, y_train)
 joblib.dump(ensemble, "models/steam/ensemble.pkl")
 
-# ---------------- NN ----------------
+#  NN 
 nn = Sequential([
     Dense(64, activation='relu', input_shape=(X_scaled.shape[1],)),
     Dense(32, activation='relu'),
@@ -69,6 +69,6 @@ nn.fit(X_train, y_train, epochs=10, batch_size=16)
 
 nn.save("models/steam/nn.keras")
 
-# ---------------- RESULT ----------------
+#  RESULT 
 acc = ensemble.score(X_test, y_test)
 print(f"✅ STEAM DONE | Accuracy: {round(acc,3)}")
