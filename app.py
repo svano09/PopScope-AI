@@ -430,102 +430,90 @@ elif page == "🎬  Netflix Predict":
  
     col1, col2, col3 = st.columns(3)
     with col1:
-        t = st.selectbox(
-            "🎬 Content Type",
-            options=["Movie", "TV Show"],
-            help="Movie = ภาพยนตร์ | TV Show = ซีรีส์/รายการ"
-        )
-        st.markdown('<p class="tooltip-label">💡 TV Show มักสร้าง Watch Time ต่อ User สูงกว่า</p>', unsafe_allow_html=True)
+        t = st.selectbox("🎬 Content Type", ["Movie", "TV Show"])
  
     with col2:
-        year = st.number_input(
-            "📅 Release Year",
-            min_value=1980, max_value=2030, value=2024, step=1,
-            help="ปีที่ Content ออกฉาย — Content ใหม่กว่ามักได้รับ Promotion มากกว่า"
-        )
-        st.markdown('<p class="tooltip-label">💡 โมเดลให้น้ำหนักคอนเทนต์ใหม่สูงกว่าคอนเทนต์เก่า</p>', unsafe_allow_html=True)
+        year = st.number_input("📅 Release Year", 1980, 2030, 2024)
  
     with col3:
-        duration = st.number_input(
-            "⏱ Duration (minutes)",
-            min_value=1, max_value=300, value=90, step=5,
-            help="สำหรับ Movie = ความยาวรวม | TV Show = นาทีต่อ Episode"
-        )
-        st.markdown('<p class="tooltip-label">💡 ระวังความยาวที่มากเกินไปอาจทำให้ Completion rate ตก</p>', unsafe_allow_html=True)
+        duration = st.number_input("⏱ Duration (minutes)", 1, 300, 90)
  
-    # [เพิ่ม] ส่วนให้ User เลือก Genre
     st.markdown("<br>", unsafe_allow_html=True)
+ 
     selected_genres = []
     if netflix_genre_columns:
         selected_genres = st.multiselect(
             "🎭 Genres (listed_in)",
-            options=netflix_genre_columns,
-            help="เลือกหมวดหมู่ของคอนเทนต์ (สามารถเลือกได้มากกว่า 1 หมวดหมู่)"
+            options=netflix_genre_columns
         )
-        st.markdown('<p class="tooltip-label">💡 หมวดหมู่ที่ตรงกับกลุ่มเป้าหมายมีผลอย่างมากต่อความนิยม</p>', unsafe_allow_html=True)
     else:
-        st.info("⚠️ ไม่พบข้อมูล Genre กรุณารันไฟล์ train_netflix.py เพื่อฝึกโมเดลและสร้างไฟล์ genre_columns.pkl ก่อน")
-
+        st.info("⚠️ ไม่พบข้อมูล Genre กรุณารัน train_netflix.py ก่อน")
+ 
     st.markdown("<br>", unsafe_allow_html=True)
  
-    # [แก้ไข] เช็คว่าโหลด genre_columns สำเร็จด้วย
     models_ready_n = netflix_model and netflix_scaler and netflix_le and netflix_genre_columns
     col_ml2, col_nn2 = st.columns(2)
  
+    #  ML 
     with col_ml2:
         if st.button("🧠 Predict with ML Ensemble", use_container_width=True, key="nf_ml"):
             if not models_ready_n:
-                st.warning("⚠️ ไม่พบไฟล์โมเดล ML หรือไฟล์ Genre — กรุณาฝึกโมเดลก่อน (models/netflix/model.pkl)")
+                st.warning("⚠️ ไม่พบไฟล์โมเดล")
+            elif len(selected_genres) == 0:   # ✅ เพิ่มตรงนี้
+                st.warning("⚠️ กรุณาเลือก Genre อย่างน้อย 1 อัน")
+                st.stop()
             else:
                 try:
                     t_enc = netflix_le.transform([t])[0]
-                    # [เพิ่ม] แปลง Genre ที่เลือกให้เป็น One-Hot Array
                     genre_features = [1 if g in selected_genres else 0 for g in netflix_genre_columns]
-                    # รวม Features ทั้งหมดเข้าด้วยกัน (เรียงลำดับให้ตรงกับตอน Train)
                     features = [t_enc, year, duration] + genre_features
                     data = netflix_scaler.transform(np.array([features]))
-                    
+ 
                     prob = netflix_model.predict_proba(data)[0][1]
                     verdict, insight, theme = get_actionable_insight(prob)
-                    
-                    st.markdown(f'''<div class="result-box" style="border-color: rgba(247,95,142,0.3);">
-<div class="result-percent" style="background: linear-gradient(to right, var(--accent-pink), #ffb3c8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{prob*100:.1f}%</div>
+ 
+                    st.markdown(f'''<div class="result-box">
+<div class="result-percent">{prob*100:.1f}%</div>
 <div class="result-label">ML Ensemble Confidence Score</div>
 <br><span style="font-size:1.3rem; font-weight:700;">{verdict}</span>
 </div>''', unsafe_allow_html=True)
                     st.progress(float(prob))
-                    
+ 
                     if theme == "success": st.success(insight)
                     elif theme == "warning": st.warning(insight)
                     else: st.error(insight)
+ 
                 except Exception as e:
                     st.error(f"เกิดข้อผิดพลาด: {e}")
  
+    #  NN 
     with col_nn2:
         if st.button("🤖 Predict with Neural Net", use_container_width=True, key="nf_nn"):
             if not (models_ready_n and netflix_nn):
-                st.warning("⚠️ ไม่พบไฟล์ Neural Network หรือไฟล์ Genre — กรุณาฝึกโมเดลก่อน (models/netflix/nn.keras)")
+                st.warning("⚠️ ไม่พบ Neural Network")
+            elif len(selected_genres) == 0:   # ✅ เพิ่มตรงนี้
+                st.warning("⚠️ กรุณาเลือก Genre อย่างน้อย 1 อัน")
+                st.stop()
             else:
                 try:
                     t_enc = netflix_le.transform([t])[0]
-                    # [เพิ่ม] แปลง Genre ที่เลือกให้เป็น One-Hot Array
                     genre_features = [1 if g in selected_genres else 0 for g in netflix_genre_columns]
-                    # รวม Features ทั้งหมดเข้าด้วยกัน (เรียงลำดับให้ตรงกับตอน Train)
                     features = [t_enc, year, duration] + genre_features
                     data = netflix_scaler.transform(np.array([features]))
-                    
+ 
                     prob = float(netflix_nn.predict(data, verbose=0)[0][0])
                     verdict, insight, theme = get_actionable_insight(prob)
-                    
-                    st.markdown(f'''<div class="result-box" style="border-color: rgba(247,95,142,0.3);">
-<div class="result-percent" style="background: linear-gradient(to right, var(--accent-pink), var(--accent-blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{prob*100:.1f}%</div>
+ 
+                    st.markdown(f'''<div class="result-box">
+<div class="result-percent">{prob*100:.1f}%</div>
 <div class="result-label">Neural Network Confidence Score</div>
 <br><span style="font-size:1.3rem; font-weight:700;">{verdict}</span>
 </div>''', unsafe_allow_html=True)
                     st.progress(float(prob))
-                    
+ 
                     if theme == "success": st.success(insight)
                     elif theme == "warning": st.warning(insight)
                     else: st.error(insight)
+ 
                 except Exception as e:
                     st.error(f"เกิดข้อผิดพลาด: {e}")
