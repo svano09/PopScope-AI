@@ -488,10 +488,10 @@ elif page == "🎬  Netflix Predict":
  
     #  NN 
     with col_nn2:
-        if st.button("🤖 Predict with Neural Net", use_container_width=True, key="nf_nn"):
+        if st.button("🤖 Predict with Neural Network", use_container_width=True, key="nf_nn"):
             if not (models_ready_n and netflix_nn):
                 st.warning("⚠️ ไม่พบ Neural Network")
-            elif len(selected_genres) == 0:   # ✅ เพิ่มตรงนี้
+            elif len(selected_genres) == 0:   
                 st.warning("⚠️ กรุณาเลือก Genre อย่างน้อย 1 อัน")
                 st.stop()
             else:
