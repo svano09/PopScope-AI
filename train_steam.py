@@ -9,66 +9,69 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier,
 from sklearn.linear_model import LogisticRegression
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout
 
-print("🚀 TRAIN STEAM START")
+print("🚀 TRAIN STEAM START (Final Feature Engineering Mode)")
 
-#  PATH 
+# 1. PATH 
 os.makedirs("models/steam", exist_ok=True)
 
-#  LOAD 
+# 2. LOAD 
 df = pd.read_csv("data/steam_games_2026.csv")
 
-#  CLEAN 
-df = df.dropna(subset=["Price_USD", "Review_Score_Pct", "Primary_Genre"])
+# 3. DATA CLEANING 
+df = df.dropna(subset=["Price_USD", "Discount_Pct", "Primary_Genre", "Review_Score_Pct"])
 
-#  TARGET 
-df["popular"] = df["Review_Score_Pct"] > 80
+# 4. FEATURE ENGINEERING
+df["Final_Price"] = df["Price_USD"] - (df["Price_USD"] * (df["Discount_Pct"] / 100))
 
-#  ENCODE 
+# 5. TARGET 
+df["popular"] = (df["Review_Score_Pct"] > 80).astype(int)
+
+# 6. ENCODE
 le = LabelEncoder()
-df["Primary_Genre"] = le.fit_transform(df["Primary_Genre"])
+df["Primary_Genre_encoded"] = le.fit_transform(df["Primary_Genre"])
 joblib.dump(le, "models/steam/label_encoder.pkl")
 
-#  FEATURES 
-X = df[["Price_USD", "Review_Score_Pct", "Primary_Genre"]]
+# 7. FEATURES 
+X = df[["Final_Price", "Discount_Pct", "Primary_Genre_encoded"]]
 y = df["popular"]
 
-#  SCALE 
+# 8. SCALE
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 joblib.dump(scaler, "models/steam/scaler.pkl")
 
-#  SPLIT 
+# 9. SPLIT
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.2, random_state=42
 )
 
-#  ML 
-rf = RandomForestClassifier(n_estimators=100)
-gb = GradientBoostingClassifier()
-lr = LogisticRegression(max_iter=1000)
+# 10. ML MODELS 
+rf = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
+gb = GradientBoostingClassifier(n_estimators=100, max_depth=3, random_state=42)
+lr = LogisticRegression(max_iter=1000, random_state=42)
 
 ensemble = VotingClassifier(
     estimators=[("rf", rf), ("gb", gb), ("lr", lr)],
     voting="soft"
 )
-
 ensemble.fit(X_train, y_train)
 joblib.dump(ensemble, "models/steam/ensemble.pkl")
 
-#  NN 
+# 11. NEURAL NETWORK 
 nn = Sequential([
-    Dense(64, activation='relu', input_shape=(X_scaled.shape[1],)),
-    Dense(32, activation='relu'),
+    Dense(32, activation='relu', input_shape=(3,)),
+    Dropout(0.3),
+    Dense(16, activation='relu'),
+    Dropout(0.2),
     Dense(1, activation='sigmoid')
 ])
 
 nn.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-nn.fit(X_train, y_train, epochs=10, batch_size=16)
-
+nn.fit(X_train, y_train, epochs=15, batch_size=32, validation_split=0.2, verbose=0)
 nn.save("models/steam/nn.keras")
 
-#  RESULT 
+# RESULT
 acc = ensemble.score(X_test, y_test)
-print(f"✅ STEAM DONE | Accuracy: {round(acc,3)}")
+print(f"✅ STEAM DONE | Realistic Accuracy: {round(acc*100, 2)}%")

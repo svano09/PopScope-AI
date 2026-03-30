@@ -33,7 +33,7 @@ def local_css(file_name):
     else:
         st.warning(f"⚠️ ไม่พบไฟล์ CSS: {file_name}")
 
-# เรียกใช้ง style.css
+# เรียกใช้ style.css
 local_css("style.css")
  
 # Helper utilities 
@@ -240,7 +240,7 @@ elif page == "🔍  Features":
         st.markdown('''<div class="card card-steam">
         <h3>🎮 Steam Features</h3>
         <div class="info-box"><strong>Price_USD</strong> — ราคาเกม (หน่วย: ดอลลาร์สหรัฐ)<br>งานวิจัยพบว่าช่วงราคา $0–$20 มักได้รับความนิยมสูงกว่า</div>
-        <div class="info-box"><strong>Review_Score_Pct</strong> — % คะแนนรีวิวจาก Steam Community (0–100)<br>ยิ่งสูงยิ่งดี: ≥80% = Overwhelmingly Positive</div>
+        <div class="info-box"><strong>Discount_Pct</strong> — % ส่วนลดของเกม<br>โปรโมชั่นที่ดึงดูดใจส่งผลโดยตรงต่อยอดผู้เล่นและรีวิว</div>
         <div class="info-box"><strong>Primary_Genre</strong> — แนวเกมหลัก เช่น Action, RPG, Strategy<br>แนวเกมมีผลต่อฐานผู้เล่น — Encode เป็นตัวเลขก่อนป้อนโมเดล</div>
         </div>''', unsafe_allow_html=True)
  
@@ -255,6 +255,7 @@ elif page == "🔍  Features":
     st.markdown('''<div class="card card-neutral">
     <h3>🔄 Preprocessing Pipeline</h3>
     <ul>
+        <li><strong>Feature Engineering</strong> — คำนวณ Final_Price จาก Price_USD และ Discount_Pct เพื่อให้โมเดลประเมินราคาจริง</li>
         <li><strong>Label Encoding</strong> — แปลง text เป็นตัวเลข (เช่น "Action" → 0, "RPG" → 1)</li>
         <li><strong>Standard Scaler</strong> — ทำให้ทุก feature อยู่ในสเกลเดียวกัน (mean=0, std=1)</li>
         <li><strong>Output</strong> — ค่า Probability 0–100% แสดงโอกาสที่ title จะ "ได้รับความนิยมสูง"</li>
@@ -348,12 +349,12 @@ elif page == "🎮  Steam Predict":
         st.markdown('<p class="tooltip-label">💡 เกมราคา $0–$20 เข้าถึงผู้เล่นได้กว้างกว่า</p>', unsafe_allow_html=True)
  
     with col2:
-        score = st.number_input(
-            "⭐ Review Score (%)",
-            min_value=0.0, max_value=100.0, value=75.0, step=1.0,
-            help="% ของรีวิวที่เป็นบวก จาก Steam Community"
+        discount = st.number_input(
+            "📉 ส่วนลด (%)",
+            min_value=0.0, max_value=100.0, value=0.0, step=5.0,
+            help="% ส่วนลดราคาเกมที่จะโปรโมท"
         )
-        st.markdown('<p class="tooltip-label">💡 เป้าหมายคือรักษาฐานคะแนน >80% ขึ้นไป</p>', unsafe_allow_html=True)
+        st.markdown('<p class="tooltip-label">💡 ส่วนลดดึงดูดผู้เล่นและเพิ่มโอกาสรีวิวบวก</p>', unsafe_allow_html=True)
  
     with col3:
         genres = list(steam["Primary_Genre"].dropna().unique()) if steam_le else [
@@ -377,8 +378,16 @@ elif page == "🎮  Steam Predict":
                 st.warning("⚠️ ไม่พบไฟล์โมเดล ML — กรุณาฝึกโมเดลก่อน (models/steam/ensemble.pkl)")
             else:
                 try:
+                    # 1. Feature Engineering
+                    final_price = price - (price * (discount / 100))
+                    
+                    # 2. category encoding
                     g_enc = steam_le.transform([genre])[0]
-                    data = steam_scaler.transform(np.array([[price, score, g_enc]]))
+                    
+                    # 3. sort features
+                    data = steam_scaler.transform(np.array([[final_price, discount, g_enc]]))
+                    
+                    # 4. predict
                     prob = steam_model.predict_proba(data)[0][1]
                     verdict, insight, theme = get_actionable_insight(prob)
                     
@@ -401,8 +410,16 @@ elif page == "🎮  Steam Predict":
                 st.warning("⚠️ ไม่พบไฟล์ Neural Network — กรุณาฝึกโมเดลก่อน (models/steam/nn.keras)")
             else:
                 try:
+                    # 1. Feature Engineering
+                    final_price = price - (price * (discount / 100))
+                    
+                    # 2. cetegory encoding
                     g_enc = steam_le.transform([genre])[0]
-                    data = steam_scaler.transform(np.array([[price, score, g_enc]]))
+                    
+                    # 3. sort features
+                    data = steam_scaler.transform(np.array([[final_price, discount, g_enc]]))
+                    
+                    # 4. predict
                     prob = float(steam_nn.predict(data, verbose=0)[0][0])
                     verdict, insight, theme = get_actionable_insight(prob)
                     
