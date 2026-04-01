@@ -13,16 +13,16 @@ from tensorflow.keras.layers import Dense, Dropout
 
 print("🚀 TRAIN NETFLIX START (ENSEMBLE 3 MODELS)")
 
-# ---------------- PATH ----------------
+#  PATH 
 os.makedirs("models/netflix", exist_ok=True)
 
-# ---------------- LOAD ----------------
+#  LOAD 
 df = pd.read_csv("data/netflix_titles.csv")
 
-# ---------------- CLEAN ----------------
+#  CLEAN 
 df = df.dropna(subset=["type", "release_year", "duration", "listed_in"])
 
-# ---------------- FEATURE ENGINEERING ----------------
+#  FEATURE ENGINEERING 
 df["duration_num"] = df["duration"].str.extract(r"(\d+)").astype(float)
 
 # แปลง Genre เป็น 0 กับ 1
@@ -30,9 +30,6 @@ genres_df = df["listed_in"].str.get_dummies(sep=', ')
 genre_columns = list(genres_df.columns)
 df = pd.concat([df, genres_df], axis=1)
 
-# ---------------- TARGET (ปรับใหม่ให้สมจริง ไม่โกงข้อสอบ) ----------------
-# เนื่องจาก Dataset นี้ไม่มี "ยอดวิว" เราจึงจำลองคะแนนความนิยม (Popularity Score) 
-# โดยให้เครดิตกับ TV Show (คนมักติดงอมแงม), คอนเทนต์ที่ใหม่, และความยาวที่พอดี
 np.random.seed(42)
 base_score = np.random.normal(50, 15, len(df)) # คะแนนตั้งต้น
 type_bonus = np.where(df["type"] == "TV Show", 10, 0)
@@ -43,29 +40,29 @@ df["synthetic_score"] = base_score + type_bonus + year_bonus
 threshold = df["synthetic_score"].quantile(0.7)
 df["popular"] = (df["synthetic_score"] > threshold).astype(int)
 
-# ---------------- ENCODE ----------------
+#  ENCODE 
 le = LabelEncoder()
 df["type_encoded"] = le.fit_transform(df["type"])
 joblib.dump(le, "models/netflix/type_encoder.pkl")
 
-# ---------------- FEATURES ----------------
+#  FEATURES 
 feature_cols = ["type_encoded", "release_year", "duration_num"] + genre_columns
 joblib.dump(genre_columns, "models/netflix/genre_columns.pkl") 
 
 X = df[feature_cols]
 y = df["popular"]
 
-# ---------------- SCALE ----------------
+#  SCALE 
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 joblib.dump(scaler, "models/netflix/scaler.pkl")
 
-# ---------------- SPLIT ----------------
+#  SPLIT 
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.2, random_state=42, stratify=y
 )
 
-# ---------------- ML (ENSEMBLE 3 MODELS ตามสั่งอาจารย์) ----------------
+#  ML
 # 1. Random Forest
 rf = RandomForestClassifier(n_estimators=100, random_state=42)
 # 2. Gradient Boosting
@@ -73,7 +70,7 @@ gb = GradientBoostingClassifier(n_estimators=100, random_state=42)
 # 3. Logistic Regression
 lr = LogisticRegression(random_state=42)
 
-# จับมัดรวมกันเป็น Ensemble (Soft Voting เพื่อให้ดึง Probability ไปใช้ได้)
+# สร้าง Ensemble Model 
 ensemble_model = VotingClassifier(
     estimators=[('rf', rf), ('gb', gb), ('lr', lr)],
     voting='soft'
@@ -82,7 +79,7 @@ ensemble_model = VotingClassifier(
 ensemble_model.fit(X_train, y_train)
 joblib.dump(ensemble_model, "models/netflix/model.pkl")
 
-# ---------------- NN (ปรับแก้เพิ่ม Dropout ให้โมเดลฉลาดขึ้น) ----------------
+#  NN 
 nn = Sequential([
     Dense(64, activation='relu', input_shape=(X_scaled.shape[1],)),
     Dropout(0.3), # ป้องกัน Overfitting
@@ -93,10 +90,9 @@ nn = Sequential([
 
 nn.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 nn.fit(X_train, y_train, epochs=20, batch_size=32, validation_split=0.2, verbose=1)
-
 nn.save("models/netflix/nn.keras")
 
-# ---------------- RESULT ----------------
+#  RESULT 
 acc = ensemble_model.score(X_test, y_test)
 print(f"✅ NETFLIX ENSEMBLE DONE | Accuracy: {round(acc*100, 2)}%")
 print(f"📌 Total Features trained: {X_scaled.shape[1]}")
